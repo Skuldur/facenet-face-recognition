@@ -28,8 +28,6 @@ windows10_voice_interface = wincl.Dispatch("SAPI.SpVoice")
 
 FRmodel = faceRecoModel(input_shape=(3, 96, 96))
 
-print("Total Params:", FRmodel.count_params())
-
 def triplet_loss(y_true, y_pred, alpha = 0.2):
     """
     Implementation of the triplet loss as defined by formula (3)
@@ -90,7 +88,7 @@ def webcam_face_recognizer(database):
         img = frame
 
         # We do not want to detect a new identity while the program is in the process of identifying another person
-        if(ready_to_detect_identity):
+        if ready_to_detect_identity:
             img = process_frame(img, frame, face_cascade)   
         
         key = cv2.waitKey(100)
@@ -101,6 +99,9 @@ def webcam_face_recognizer(database):
     cv2.destroyWindow("preview")
 
 def process_frame(img, frame, face_cascade):
+    """
+    Determine whether the current frame contains the faces of people from our database
+    """
     global ready_to_detect_identity
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
@@ -108,9 +109,14 @@ def process_frame(img, frame, face_cascade):
     # Loop through all the faces detected and determine whether or not they are in the database
     identities = []
     for (x, y, w, h) in faces:
-        img = cv2.rectangle(frame,(x-PADDING,y-PADDING),(x+w+PADDING,y+h+PADDING),(255,0,0),2)
+        x1 = x-PADDING
+        y1 = y-PADDING
+        x2 = x+w+PADDING
+        y2 = y+h+PADDING
 
-        identity = find_identity(frame, x, y, w, h)
+        img = cv2.rectangle(frame,(x1, y1),(x2, y2),(255,0,0),2)
+
+        identity = find_identity(frame, x1, y1, x2, y2)
 
         if identity is not None:
             identities.append(identity)
@@ -122,13 +128,19 @@ def process_frame(img, frame, face_cascade):
         pool.apply_async(welcome_users, [identities])
     return img
 
-def find_identity(frame, x, y, w, h):
+def find_identity(frame, x1, y1, x2, y2):
     """
     Determine whether the face contained within the bounding box exists in our database
+
+    x1,y1_____________
+    |                 |
+    |                 |
+    |_________________x2,y2
+
     """
     height, width, channels = frame.shape
     # The padding is necessary since the OpenCV face detector creates the bounding box around the face and not the head
-    part_image = frame[max(0, y-PADDING):min(height, y+h+PADDING), max(0, x-PADDING):min(width, x+w+PADDING)]
+    part_image = frame[max(0, y1):min(height, y2), max(0, x1):min(width, x2)]
     
     return who_is_it(part_image, database, FRmodel)
 
