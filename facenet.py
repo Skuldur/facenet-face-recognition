@@ -13,6 +13,7 @@ from multiprocessing.dummy import Pool
 K.set_image_data_format('channels_first')
 import cv2
 import os
+import glob
 import numpy as np
 from numpy import genfromtxt
 import pandas as pd
@@ -21,10 +22,9 @@ from fr_utils import *
 from inception_blocks_v2 import *
 import win32com.client as wincl
 
-speak = wincl.Dispatch("SAPI.SpVoice")
-
 PADDING = 50
-ready = True
+ready_to_detect_identity = True
+windows10_voice_interface = wincl.Dispatch("SAPI.SpVoice")
 
 FRmodel = faceRecoModel(input_shape=(3, 96, 96))
 
@@ -62,29 +62,35 @@ load_weights_from_FaceNet(FRmodel)
 
 def prepare_database():
     database = {}
-    database["Sigurdur"] = img_to_encoding("images/sigurdur2.jpg", FRmodel)
-    database["Kristin"] = img_to_encoding("images/kristin.jpg", FRmodel)
-    database["Skuli"] = img_to_encoding("images/skuli3.jpg", FRmodel)
+
+    # load all the images of individuals to recognize into the database
+    for file in glob.glob("images/*"):
+        identity = os.path.splitext(os.path.basename(file))[0]
+        database[identity] = img_to_encoding(file, FRmodel)
+
     return database
 
-def webcam_face_detector(database):
-    global ready
+def webcam_face_recognizer(database):
+    """
+    Runs a loop that extracts images from the computer's webcam and determines whether or not
+    it contains the face of a person in our database.
+
+    If it contains a face, an audio message will be played welcoming the user.
+    If not, the program will process the next frame from the webcam
+    """
+    global ready_to_detect_identity
 
     cv2.namedWindow("preview")
     vc = cv2.VideoCapture(0)
 
-    if vc.isOpened(): # try to get the first frame
-        rval, frame = vc.read()
-    else:
-        rval = False
-
     face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_default.xml')
     
-    while rval:
-        rval, frame = vc.read()
+    while vc.isOpened():
+        _, frame = vc.read()
         img = frame
 
-        if(ready):
+        # We do not want to detect a new identity while the program is in the process of identifying another person
+        if(ready_to_detect_identity):
             img = process_frame(img, frame, face_cascade)   
         
         key = cv2.waitKey(100)
@@ -95,28 +101,50 @@ def webcam_face_detector(database):
     cv2.destroyWindow("preview")
 
 def process_frame(img, frame, face_cascade):
+    global ready_to_detect_identity
     gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
     faces = face_cascade.detectMultiScale(gray, 1.3, 5)
 
+    # Loop through all the faces detected and determine whether or not they are in the database
+    identities = []
     for (x, y, w, h) in faces:
         img = cv2.rectangle(frame,(x-PADDING,y-PADDING),(x+w+PADDING,y+h+PADDING),(255,0,0),2)
-        find_identity(frame, x, y, w, h)
 
+        identity = find_identity(frame, x, y, w, h)
+
+        if identity is not None:
+            identities.append(identity)
+
+    if identities != []:
+        ready_to_detect_identity = False
+        pool = Pool(processes=1) 
+        # We run this as a separate process so that the camera feedback does not freeze
+        pool.apply_async(welcome_users, [identities])
     return img
 
 def find_identity(frame, x, y, w, h):
-    global ready
-    pool = Pool(processes=1) 
+    """
+    Determine whether the face contained within the bounding box exists in our database
+    """
     height, width, channels = frame.shape
+    # The padding is necessary since the OpenCV face detector creates the bounding box around the face and not the head
     part_image = frame[max(0, y-PADDING):min(height, y+h+PADDING), max(0, x-PADDING):min(width, x+w+PADDING)]
     
-    identity = who_is_it(part_image, database, FRmodel)
-
-    if identity is not None:
-        ready = False
-        pool.apply_async(welcome_guest, [identity])
+    return who_is_it(part_image, database, FRmodel)
 
 def who_is_it(image, database, model):
+    """
+    Implements face recognition for the happy house by finding who is the person on the image_path image.
+    
+    Arguments:
+    image_path -- path to an image
+    database -- database containing image encodings along with the name of the person on the image
+    model -- your Inception model instance in Keras
+    
+    Returns:
+    min_dist -- the minimum distance between image_path encoding and the encodings from the database
+    identity -- string, the name prediction for the person on image_path
+    """
     encoding = process_image(image, model)
     
     min_dist = 100
@@ -125,30 +153,42 @@ def who_is_it(image, database, model):
     # Loop over the database dictionary's names and encodings.
     for (name, db_enc) in database.items():
         
-        # Compute L2 distance between the target "encoding" and the current "emb" from the database. (≈ 1 line)
+        # Compute L2 distance between the target "encoding" and the current "emb" from the database.
         dist = np.linalg.norm(db_enc - encoding)
 
         print('distance for %s is %s' %(name, dist))
 
-        # If this distance is less than the min_dist, then set min_dist to dist, and identity to name. (≈ 3 lines)
+        # If this distance is less than the min_dist, then set min_dist to dist, and identity to name
         if dist < min_dist:
             min_dist = dist
             identity = name
     
-    if min_dist > 0.55:
+    if min_dist > 0.52:
         return None
     else:
         return str(identity)
 
-def welcome_guest(identity):
-    global ready
-    welcome_message = "Welcome %s. Have a nice day!" % identity
-    speak.Speak(welcome_message)
-    ready = True
+def welcome_users(identities):
+    """ Outputs a welcome audio message to the users """
+    global ready_to_detect_identity
+    welcome_message = 'Welcome '
+
+    if len(identities) == 1:
+        welcome_message += '%s, have a nice day.' % identities[0]
+    else:
+        for identity_id in range(len(identities)-1):
+            welcome_message += '%s, ' % identities[identity_id]
+        welcome_message += 'and %s, ' % identities[-1]
+        welcome_message += 'have a nice day!'
+
+    windows10_voice_interface.Speak(welcome_message)
+
+    # Allow the program to start detecting identities again
+    ready_to_detect_identity = True
 
 if __name__ == "__main__":
     database = prepare_database()
-    webcam_face_detector(database)
+    webcam_face_recognizer(database)
 
 # ### References:
 # 
