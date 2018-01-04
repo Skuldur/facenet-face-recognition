@@ -1,12 +1,3 @@
-from keras.models import Sequential
-from keras.layers import Conv2D, ZeroPadding2D, Activation, Input, concatenate
-from keras.models import Model
-from keras.layers.normalization import BatchNormalization
-from keras.layers.pooling import MaxPooling2D, AveragePooling2D
-from keras.layers.merge import Concatenate
-from keras.layers.core import Lambda, Flatten, Dense
-from keras.initializers import glorot_uniform
-from keras.engine.topology import Layer
 from keras import backend as K
 import time
 from multiprocessing.dummy import Pool
@@ -16,7 +7,6 @@ import os
 import glob
 import numpy as np
 from numpy import genfromtxt
-import pandas as pd
 import tensorflow as tf
 from fr_utils import *
 from inception_blocks_v2 import *
@@ -28,7 +18,7 @@ windows10_voice_interface = wincl.Dispatch("SAPI.SpVoice")
 
 FRmodel = faceRecoModel(input_shape=(3, 96, 96))
 
-def triplet_loss(y_true, y_pred, alpha = 0.2):
+def triplet_loss(y_true, y_pred, alpha = 0.3):
     """
     Implementation of the triplet loss as defined by formula (3)
     
@@ -64,7 +54,7 @@ def prepare_database():
     # load all the images of individuals to recognize into the database
     for file in glob.glob("images/*"):
         identity = os.path.splitext(os.path.basename(file))[0]
-        database[identity] = img_to_encoding(file, FRmodel)
+        database[identity] = img_path_to_encoding(file, FRmodel)
 
     return database
 
@@ -122,6 +112,8 @@ def process_frame(img, frame, face_cascade):
             identities.append(identity)
 
     if identities != []:
+        cv2.imwrite('example.png',img)
+
         ready_to_detect_identity = False
         pool = Pool(processes=1) 
         # We run this as a separate process so that the camera feedback does not freeze
@@ -157,7 +149,7 @@ def who_is_it(image, database, model):
     min_dist -- the minimum distance between image_path encoding and the encodings from the database
     identity -- string, the name prediction for the person on image_path
     """
-    encoding = process_image(image, model)
+    encoding = img_to_encoding(image, model)
     
     min_dist = 100
     identity = None

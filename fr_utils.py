@@ -189,12 +189,12 @@ def load_dataset():
     
     return train_set_x_orig, train_set_y_orig, test_set_x_orig, test_set_y_orig, classes
 
-def img_to_encoding(image_path, model):
+def img_path_to_encoding(image_path, model):
     img1 = cv2.imread(image_path, 1)
-    return process_image(img1, model)
+    return img_to_encoding(img1, model)
     
 
-def process_image(image, model):
+def img_to_encoding(image, model):
     image = cv2.resize(image, (96, 96)) 
     img = image[...,::-1]
     img = np.around(np.transpose(img, (2,0,1))/255.0, decimals=12)
