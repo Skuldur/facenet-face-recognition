@@ -11,3 +11,7 @@ To install all the requirements for the project run
 In the root directory. After the modules have been installed you can run the project by using python
 
 	python facenet.py
+
+## NOTE
+
+We're using the Windows 10 Text-to-Speech library to output our audio message, so if you want to run it on a different OS then you will have to replace the speech library used in facenet.py
