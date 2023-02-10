@@ -10,11 +10,11 @@ from numpy import genfromtxt
 import tensorflow as tf
 from fr_utils import *
 from inception_blocks_v2 import *
-import win32com.client as wincl
+# import win32com.client as wincl
 
 PADDING = 50
 ready_to_detect_identity = True
-windows10_voice_interface = wincl.Dispatch("SAPI.SpVoice")
+# windows10_voice_interface = wincl.Dispatch("SAPI.SpVoice")
 
 FRmodel = faceRecoModel(input_shape=(3, 96, 96))
 
