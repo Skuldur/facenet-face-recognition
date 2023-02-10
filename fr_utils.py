@@ -142,7 +142,7 @@ def load_weights_from_FaceNet(FRmodel):
 
 def load_weights():
     # Set weights path
-    dirPath = './weights'
+    dirPath = './facenet-face-recognition/weights'
     fileNames = filter(lambda f: not f.startswith('.'), os.listdir(dirPath))
     paths = {}
     weights_dict = {}
