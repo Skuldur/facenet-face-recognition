@@ -8,7 +8,7 @@ import cv2
 from numpy import genfromtxt
 from keras.layers import Conv2D, ZeroPadding2D, Activation, Input, concatenate
 from keras.models import Model
-from keras.layers.normalization import BatchNormalization
+# from keras.layers.normalization import tf.keras.layers.BatchNormalization
 from keras.layers.pooling import MaxPooling2D, AveragePooling2D
 import h5py
 import matplotlib.pyplot as plt
@@ -49,7 +49,7 @@ def conv2d_bn(x,
               padding=None):
     num = '' if cv2_out == None else '1'
     tensor = Conv2D(cv1_out, cv1_filter, strides=cv1_strides, data_format='channels_first', name=layer+'_conv'+num)(x)
-    tensor = BatchNormalization(axis=1, epsilon=0.00001, name=layer+'_bn'+num)(tensor)
+    tensor = tf.keras.layers.BatchNormalization(axis=1, epsilon=0.00001, name=layer+'_bn'+num)(tensor)
     tensor = Activation('relu')(tensor)
     if padding == None:
         return tensor
@@ -57,7 +57,7 @@ def conv2d_bn(x,
     if cv2_out == None:
         return tensor
     tensor = Conv2D(cv2_out, cv2_filter, strides=cv2_strides, data_format='channels_first', name=layer+'_conv'+'2')(tensor)
-    tensor = BatchNormalization(axis=1, epsilon=0.00001, name=layer+'_bn'+'2')(tensor)
+    tensor = tf.keras.layers.BatchNormalization(axis=1, epsilon=0.00001, name=layer+'_bn'+'2')(tensor)
     tensor = Activation('relu')(tensor)
     return tensor
 
